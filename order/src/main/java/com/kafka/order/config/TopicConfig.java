@@ -50,4 +50,20 @@ public class TopicConfig {
             .replicas(1)
             .build();
     }
+
+    @Bean
+    public NewTopic simpleKTableTopic() {
+        return TopicBuilder.name(KafkaConstants.SIMPLE_KTABLE_TOPIC)
+        .partitions(1)
+        .replicas(1)
+        .build();
+    }
+
+    @Bean 
+    public NewTopic simpleKTableReceiverTopic(){
+        return TopicBuilder.name("simple-ktable-receiver")
+        .partitions(1)
+        .replicas(1)
+        .build();
+    }
 }

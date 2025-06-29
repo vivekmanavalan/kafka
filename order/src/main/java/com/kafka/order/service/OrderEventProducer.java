@@ -1,6 +1,10 @@
 package com.kafka.order.service;
 
+import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.streams.kstream.KTable;
+import org.apache.kafka.streams.kstream.Produced;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.serializer.JsonSerde;
 import org.springframework.stereotype.Service;
 
 import com.kafka.order.Constants.KafkaConstants;
@@ -29,5 +33,25 @@ public class OrderEventProducer {
     public void sendOrderStream(OrderStream orderStream) {
         String key = orderStream.getOrderId();
         orderStreamKafkaTemplate.send("order-stream", key, orderStream);
+    }
+
+    public void sendDataToKtable (OrderStream orderStream){
+        String key = orderStream.getOrderId();
+        log.info("Order ID received: {}", key);
+        orderStreamKafkaTemplate.send(KafkaConstants.SIMPLE_KTABLE_TOPIC, key, orderStream);
+    }
+
+    public void convertKTableToStream (KTable<String, OrderStream> dataKTable){
+        log.info("Converting KTable data to KStream and pushing to topic: {}", KafkaConstants.SIMPLE_KTABLE_OUTPUT_TOPIC);
+        log.info("Received KTable data", dataKTable);
+        dataKTable.toStream().mapValues(val -> {
+                return OrderEvent.builder()
+                    .orderAmount(val.getOrderAmount())
+                    .orderId(val.getOrderId())
+                    .customerId(val.getOrderId().concat("-cust"))
+                    .productId(val.getOrderId().concat("-prod"))
+                    .build();
+            })
+            .to(KafkaConstants.SIMPLE_KTABLE_OUTPUT_TOPIC, Produced.with(Serdes.String(), new JsonSerde<>(OrderEvent.class)));
     }
 }

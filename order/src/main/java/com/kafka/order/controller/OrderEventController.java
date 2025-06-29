@@ -35,4 +35,10 @@ public class OrderEventController {
         orderStreamProducer.sendOrderStream(orderStream);
         return ResponseEntity.ok("Order stream event created successfully");
     }
+
+    @PostMapping("/ktable")
+    public ResponseEntity<String> createOrderStreamKtable(@RequestBody OrderStream orderStream) {
+        orderStreamProducer.sendDataToKtable(orderStream);
+        return ResponseEntity.ok("Order stream event created successfully");
+    }
 }
