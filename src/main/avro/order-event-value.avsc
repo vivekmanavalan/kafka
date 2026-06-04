@@ -1,0 +1,43 @@
+{
+  "type": "record",                          
+  "name": "OrderEvent",                      
+  "namespace": "com.yourcompany.events",     
+  "fields": [
+    {
+      "name": "orderId",
+      "type": "string"
+    },
+    {
+      "name": "amount",
+      "type": "double"
+    },
+    {
+      "name": "status",
+      "type": {
+        "type": "enum",
+        "name": "OrderStatus",
+        "symbols": ["CREATED", "SHIPPED", "CANCELLED"]
+      }
+    },
+    {
+      "name": "discountCode",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "items",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "OrderItem",
+          "fields": [
+            { "name": "productId", "type": "string" },
+            { "name": "quantity",  "type": "int"    },
+            { "name": "price",     "type": "double" }
+          ]
+        }
+      }
+    }
+  ]
+}

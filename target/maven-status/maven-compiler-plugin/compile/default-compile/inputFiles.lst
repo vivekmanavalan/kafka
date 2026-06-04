@@ -1,0 +1,3 @@
+/Users/charu/Work/Kafka/schemaregistry/target/generated-sources/avro/com/yourcompany/events/OrderEvent.java
+/Users/charu/Work/Kafka/schemaregistry/target/generated-sources/avro/com/yourcompany/events/OrderItem.java
+/Users/charu/Work/Kafka/schemaregistry/target/generated-sources/avro/com/yourcompany/events/OrderStatus.java

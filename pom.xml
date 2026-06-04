@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- 1. This is YOUR library's coordinates -->
+  <!-- Other teams will use exactly this to add the dependency -->
+  <groupId>com.yourcompany.events</groupId>
+  <artifactId>order-events-schema</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <java.version>17</java.version>
+    <avro.version>1.11.3</avro.version>
+    <confluent.version>7.5.0</confluent.version>
+  </properties>
+
+  <!-- 2. Confluent repo (needed to download their plugins) -->
+  <repositories>
+    <repository>
+      <id>confluent</id>
+      <url>https://packages.confluent.io/maven/</url>
+    </repository>
+  </repositories>
+  <pluginRepositories>
+    <pluginRepository>
+      <id>confluent</id>
+      <url>https://packages.confluent.io/maven/</url>
+    </pluginRepository>
+  </pluginRepositories>
+
+  <dependencies>
+    <!-- 3. Avro runtime — needed by generated POJOs -->
+    <dependency>
+      <groupId>org.apache.avro</groupId>
+      <artifactId>avro</artifactId>
+      <version>${avro.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+
+      <!-- 4. PLUGIN 1: Avro Maven Plugin -->
+      <!-- Reads your .avsc file → Generates Java POJOs automatically -->
+      <!-- You never write OrderEvent.java manually -->
+      <plugin>
+        <groupId>org.apache.avro</groupId>
+        <artifactId>avro-maven-plugin</artifactId>
+        <version>${avro.version}</version>
+        <executions>
+          <execution>
+            <phase>generate-sources</phase>  <!-- Runs before compile -->
+            <goals><goal>schema</goal></goals>
+            <configuration>
+              <!-- Reads from here -->
+              <sourceDirectory>${project.basedir}/src/main/avro</sourceDirectory>
+              <!-- Generates Java files here -->
+              <outputDirectory>${project.build.directory}/generated-sources/avro</outputDirectory>
+              <stringType>String</stringType> <!-- Use java.lang.String not Avro CharSequence -->
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- 5. PLUGIN 2: Schema Registry Maven Plugin -->
+      <!-- Uploads your .avsc file to the Schema Registry server -->
+      <plugin>
+        <groupId>io.confluent</groupId>
+        <artifactId>kafka-schema-registry-maven-plugin</artifactId>
+        <version>${confluent.version}</version>
+        <configuration>
+          <!-- Where your Schema Registry lives -->
+          <schemaRegistryUrls>
+            <param>${schema.registry.url}</param>
+          </schemaRegistryUrls>
+          <!-- Credentials — passed via -D at runtime, never hardcoded -->
+          <userInfoConfig>${schema.registry.api.key}:${schema.registry.api.secret}</userInfoConfig>
+
+          <!-- Map: subject name → your .avsc file -->
+          <!-- Convention: topicname-value for the message value schema -->
+          <subjects>
+            <order-events-value>
+              src/main/avro/order-event.avsc
+            </order-events-value>
+          </subjects>
+
+          <!-- BACKWARD = new schema can read old messages -->
+          <!-- This protects Team B & C from breaking -->
+          <compatibilityLevels>
+            <order-events-value>BACKWARD</order-events-value>
+          </compatibilityLevels>
+        </configuration>
+
+        <executions>
+          <!-- This runs during mvn verify automatically -->
+          <execution>
+            <phase>verify</phase>
+            <goals>
+              <!-- test-compatibility checks BEFORE registering -->
+              <goal>test-compatibility</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+    </plugins>
+  </build>
+
+  <!-- 6. Where to publish the JAR (your internal Nexus/Artifactory) -->
+  <distributionManagement>
+    <repository>
+      <id>nexus-releases</id>
+      <url>https://nexus.yourcompany.com/repository/maven-releases/</url>
+    </repository>
+    <snapshotRepository>
+      <id>nexus-snapshots</id>
+      <url>https://nexus.yourcompany.com/repository/maven-snapshots/</url>
+    </snapshotRepository>
+  </distributionManagement>
+
+</project>

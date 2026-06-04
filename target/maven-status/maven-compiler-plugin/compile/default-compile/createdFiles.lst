@@ -1,0 +1,7 @@
+com/yourcompany/events/OrderStatus.class
+com/yourcompany/events/OrderEvent$1.class
+com/yourcompany/events/OrderItem$1.class
+com/yourcompany/events/OrderItem$Builder.class
+com/yourcompany/events/OrderItem.class
+com/yourcompany/events/OrderEvent$Builder.class
+com/yourcompany/events/OrderEvent.class
