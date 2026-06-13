@@ -1,0 +1,110 @@
+stages:
+  - validate
+  - dev
+  - int
+  - pre
+  - prod
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
+  MAVEN_CLI_OPTS: "-s settings.xml --batch-mode"
+
+cache:
+  paths:
+    - .m2/repository
+
+# ---------------------------------------------------------
+# VALIDATE: generate sources, compile, package JAR
+# ---------------------------------------------------------
+validate:
+  stage: validate
+  image: maven:3.9-eclipse-temurin-17
+  script:
+    - mvn $MAVEN_CLI_OPTS clean package
+  artifacts:
+    paths:
+      - target/*.jar
+      - target/generated-sources/
+    expire_in: 1 day
+
+# ---------------------------------------------------------
+# DEV
+# ---------------------------------------------------------
+test-compatibility-dev:
+  stage: dev
+  image: maven:3.9-eclipse-temurin-17
+  needs: ["validate"]
+  variables:
+    SCHEMA_REGISTRY_URL_DEV: $SCHEMA_REGISTRY_URL_DEV
+    SCHEMA_REGISTRY_API_KEY_DEV: $SCHEMA_REGISTRY_API_KEY_DEV
+    SCHEMA_REGISTRY_API_SECRET_DEV: $SCHEMA_REGISTRY_API_SECRET_DEV
+  script:
+    - mvn $MAVEN_CLI_OPTS schema-registry:test-compatibility -Pdev
+
+register-schema-dev:
+  stage: dev
+  image: maven:3.9-eclipse-temurin-17
+  needs: ["test-compatibility-dev"]
+  variables:
+    SCHEMA_REGISTRY_URL_DEV: $SCHEMA_REGISTRY_URL_DEV
+    SCHEMA_REGISTRY_API_KEY_DEV: $SCHEMA_REGISTRY_API_KEY_DEV
+    SCHEMA_REGISTRY_API_SECRET_DEV: $SCHEMA_REGISTRY_API_SECRET_DEV
+  script:
+    - mvn $MAVEN_CLI_OPTS schema-registry:register -Pdev
+
+# ---------------------------------------------------------
+# INT
+# ---------------------------------------------------------
+test-compatibility-int:
+  stage: int
+  image: maven:3.9-eclipse-temurin-17
+  needs: ["register-schema-dev"]
+  variables:
+    SCHEMA_REGISTRY_URL_INT: $SCHEMA_REGISTRY_URL_INT
+    SCHEMA_REGISTRY_API_KEY_INT: $SCHEMA_REGISTRY_API_KEY_INT
+    SCHEMA_REGISTRY_API_SECRET_INT: $SCHEMA_REGISTRY_API_SECRET_INT
+  script:
+    - mvn $MAVEN_CLI_OPTS schema-registry:test-compatibility -Pint
+
+register-schema-int:
+  stage: int
+  image: maven:3.9-eclipse-temurin-17
+  needs: ["test-compatibility-int"]
+  variables:
+    SCHEMA_REGISTRY_URL_INT: $SCHEMA_REGISTRY_URL_INT
+    SCHEMA_REGISTRY_API_KEY_INT: $SCHEMA_REGISTRY_API_KEY_INT
+    SCHEMA_REGISTRY_API_SECRET_INT: $SCHEMA_REGISTRY_API_SECRET_INT
+  script:
+    - mvn $MAVEN_CLI_OPTS schema-registry:register -Pint
+
+# ---------------------------------------------------------
+# PRE (manual trigger)
+# ---------------------------------------------------------
+register-schema-pre:
+  stage: pre
+  image: maven:3.9-eclipse-temurin-17
+  needs: ["register-schema-int"]
+  when: manual
+  variables:
+    SCHEMA_REGISTRY_URL_PRE: $SCHEMA_REGISTRY_URL_PRE
+    SCHEMA_REGISTRY_API_KEY_PRE: $SCHEMA_REGISTRY_API_KEY_PRE
+    SCHEMA_REGISTRY_API_SECRET_PRE: $SCHEMA_REGISTRY_API_SECRET_PRE
+  script:
+    - mvn $MAVEN_CLI_OPTS schema-registry:test-compatibility -Ppre
+    - mvn $MAVEN_CLI_OPTS schema-registry:register -Ppre
+
+# ---------------------------------------------------------
+# PROD (manual trigger)
+# ---------------------------------------------------------
+register-schema-prod:
+  stage: prod
+  image: maven:3.9-eclipse-temurin-17
+  needs: ["register-schema-pre"]
+  when: manual
+  variables:
+    SCHEMA_REGISTRY_URL_PROD: $SCHEMA_REGISTRY_URL_PROD
+    SCHEMA_REGISTRY_API_KEY_PROD: $SCHEMA_REGISTRY_API_KEY_PROD
+    SCHEMA_REGISTRY_API_SECRET_PROD: $SCHEMA_REGISTRY_API_SECRET_PROD
+  script:
+    - mvn $MAVEN_CLI_OPTS schema-registry:test-compatibility -Pprod
+    - mvn $MAVEN_CLI_OPTS schema-registry:register -Pprod

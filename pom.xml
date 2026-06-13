@@ -1,122 +1,119 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project>
-  <modelVersion>4.0.0</modelVersion>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
 
-  <!-- 1. This is YOUR library's coordinates -->
-  <!-- Other teams will use exactly this to add the dependency -->
-  <groupId>com.yourcompany.events</groupId>
-  <artifactId>order-events-schema</artifactId>
-  <version>1.0.0</version>
-  <packaging>jar</packaging>
+    <groupId>com.mycompany.kafka</groupId>
+    <artifactId>order-schemas</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
 
-  <properties>
-    <java.version>17</java.version>
-    <avro.version>1.11.3</avro.version>
-    <confluent.version>7.5.0</confluent.version>
-  </properties>
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <avro.version>1.12.1</avro.version>
+        <confluent.version>8.1.1</confluent.version>
 
-  <!-- 2. Confluent repo (needed to download their plugins) -->
-  <repositories>
-    <repository>
-      <id>confluent</id>
-      <url>https://packages.confluent.io/maven/</url>
-    </repository>
-  </repositories>
-  <pluginRepositories>
-    <pluginRepository>
-      <id>confluent</id>
-      <url>https://packages.confluent.io/maven/</url>
-    </pluginRepository>
-  </pluginRepositories>
+        <!-- Placeholders, overridden per profile via -D from CI/CD -->
+        <schema.registry.url>http://localhost:8081</schema.registry.url>
+        <schema.registry.api.key>placeholder</schema.registry.api.key>
+        <schema.registry.api.secret>placeholder</schema.registry.api.secret>
+    </properties>
 
-  <dependencies>
-    <!-- 3. Avro runtime — needed by generated POJOs -->
-    <dependency>
-      <groupId>org.apache.avro</groupId>
-      <artifactId>avro</artifactId>
-      <version>${avro.version}</version>
-    </dependency>
-  </dependencies>
+    <repositories>
+        <repository>
+            <id>confluent</id>
+            <url>https://packages.confluent.io/maven/</url>
+        </repository>
+    </repositories>
 
-  <build>
-    <plugins>
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
+            <version>${avro.version}</version>
+        </dependency>
+    </dependencies>
 
-      <!-- 4. PLUGIN 1: Avro Maven Plugin -->
-      <!-- Reads your .avsc file → Generates Java POJOs automatically -->
-      <!-- You never write OrderEvent.java manually -->
-      <plugin>
-        <groupId>org.apache.avro</groupId>
-        <artifactId>avro-maven-plugin</artifactId>
-        <version>${avro.version}</version>
-        <executions>
-          <execution>
-            <phase>generate-sources</phase>  <!-- Runs before compile -->
-            <goals><goal>schema</goal></goals>
-            <configuration>
-              <!-- Reads from here -->
-              <sourceDirectory>${project.basedir}/src/main/avro</sourceDirectory>
-              <!-- Generates Java files here -->
-              <outputDirectory>${project.build.directory}/generated-sources/avro</outputDirectory>
-              <stringType>String</stringType> <!-- Use java.lang.String not Avro CharSequence -->
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
+    <build>
+        <plugins>
+            <!-- Step 1: Generate Java classes from .avsc files -->
+            <plugin>
+                <groupId>org.apache.avro</groupId>
+                <artifactId>avro-maven-plugin</artifactId>
+                <version>${avro.version}</version>
+                <executions>
+                    <execution>
+                        <id>generate-avro-classes</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>schema</goal>
+                        </goals>
+                        <configuration>
+                            <sourceDirectory>${project.basedir}/src/main/avro</sourceDirectory>
+                            <outputDirectory>${project.build.directory}/generated-sources/avro</outputDirectory>
+                            <stringType>String</stringType>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
 
-      <!-- 5. PLUGIN 2: Schema Registry Maven Plugin -->
-      <!-- Uploads your .avsc file to the Schema Registry server -->
-      <plugin>
-        <groupId>io.confluent</groupId>
-        <artifactId>kafka-schema-registry-maven-plugin</artifactId>
-        <version>${confluent.version}</version>
-        <configuration>
-          <!-- Where your Schema Registry lives -->
-          <schemaRegistryUrls>
-            <param>${schema.registry.url}</param>
-          </schemaRegistryUrls>
-          <!-- Credentials — passed via -D at runtime, never hardcoded -->
-          <userInfoConfig>${schema.registry.api.key}:${schema.registry.api.secret}</userInfoConfig>
+            <!-- Step 2: Compatibility check + registration against schema registry -->
+            <plugin>
+                <groupId>io.confluent</groupId>
+                <artifactId>kafka-schema-registry-maven-plugin</artifactId>
+                <version>${confluent.version}</version>
+                <configuration>
+                    <schemaRegistryUrls>
+                        <param>${schema.registry.url}</param>
+                    </schemaRegistryUrls>
+                    <userInfoConfig>${schema.registry.api.key}:${schema.registry.api.secret}</userInfoConfig>
+                    <schemaTypes>
+                        <order-events-value>AVRO</order-events-value>
+                        <payment-events-value>AVRO</payment-events-value>
+                    </schemaTypes>
+                    <subjects>
+                        <order-events-value>src/main/avro/order_event.avsc</order-events-value>
+                        <payment-events-value>src/main/avro/payment_event.avsc</payment-events-value>
+                    </subjects>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
-          <!-- Map: subject name → your .avsc file -->
-          <!-- Convention: topicname-value for the message value schema -->
-          <subjects>
-            <order-events-value>
-              src/main/avro/order-event.avsc
-            </order-events-value>
-          </subjects>
-
-          <!-- BACKWARD = new schema can read old messages -->
-          <!-- This protects Team B & C from breaking -->
-          <compatibilityLevels>
-            <order-events-value>BACKWARD</order-events-value>
-          </compatibilityLevels>
-        </configuration>
-
-        <executions>
-          <!-- This runs during mvn verify automatically -->
-          <execution>
-            <phase>verify</phase>
-            <goals>
-              <!-- test-compatibility checks BEFORE registering -->
-              <goal>test-compatibility</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-
-    </plugins>
-  </build>
-
-  <!-- 6. Where to publish the JAR (your internal Nexus/Artifactory) -->
-  <distributionManagement>
-    <repository>
-      <id>nexus-releases</id>
-      <url>https://nexus.yourcompany.com/repository/maven-releases/</url>
-    </repository>
-    <snapshotRepository>
-      <id>nexus-snapshots</id>
-      <url>https://nexus.yourcompany.com/repository/maven-snapshots/</url>
-    </snapshotRepository>
-  </distributionManagement>
-
+    <profiles>
+        <profile>
+            <id>dev</id>
+            <properties>
+                <schema.registry.url>${env.SCHEMA_REGISTRY_URL_DEV}</schema.registry.url>
+                <schema.registry.api.key>${env.SCHEMA_REGISTRY_API_KEY_DEV}</schema.registry.api.key>
+                <schema.registry.api.secret>${env.SCHEMA_REGISTRY_API_SECRET_DEV}</schema.registry.api.secret>
+            </properties>
+        </profile>
+        <profile>
+            <id>int</id>
+            <properties>
+                <schema.registry.url>${env.SCHEMA_REGISTRY_URL_INT}</schema.registry.url>
+                <schema.registry.api.key>${env.SCHEMA_REGISTRY_API_KEY_INT}</schema.registry.api.key>
+                <schema.registry.api.secret>${env.SCHEMA_REGISTRY_API_SECRET_INT}</schema.registry.api.secret>
+            </properties>
+        </profile>
+        <profile>
+            <id>pre</id>
+            <properties>
+                <schema.registry.url>${env.SCHEMA_REGISTRY_URL_PRE}</schema.registry.url>
+                <schema.registry.api.key>${env.SCHEMA_REGISTRY_API_KEY_PRE}</schema.registry.api.key>
+                <schema.registry.api.secret>${env.SCHEMA_REGISTRY_API_SECRET_PRE}</schema.registry.api.secret>
+            </properties>
+        </profile>
+        <profile>
+            <id>prod</id>
+            <properties>
+                <schema.registry.url>${env.SCHEMA_REGISTRY_URL_PROD}</schema.registry.url>
+                <schema.registry.api.key>${env.SCHEMA_REGISTRY_API_KEY_PROD}</schema.registry.api.key>
+                <schema.registry.api.secret>${env.SCHEMA_REGISTRY_API_SECRET_PROD}</schema.registry.api.secret>
+            </properties>
+        </profile>
+    </profiles>
 </project>
